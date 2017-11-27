@@ -26,7 +26,20 @@ class MLP(object):
             self.init_weights()
 
         return
-
+    
+    def copy(self,weightless = True):
+        '''If weightless==True, the Weigth matrices Whx And Wyh are not assigned
+            They can be initialized to random by calling MLP.init_weights()
+            if weightless==False, these are copied as well
+        '''
+        if weightless:
+            return MLP(self.nx,self.nh,self.ny,self.Wmin,self.Wmax,noinit=True)
+        else:
+            mlp = MLP(self.nx,self.nh,self.ny,self.Wmin,self.Wmax,noinit=True)
+            mlp.Whx = self.Whx[:]
+            mlp.Wyh = self.Wyh[:]
+            return mlp
+    
     def init_weights(self):
         """
         Init weight matrices
@@ -133,7 +146,8 @@ class MLP(object):
 class Abathur:
     def __init__(self,(nx,nh,ny),dataset,Wmin=-1, Wmax=1, poolsize=100, survivors=80, \
                  leftover_parents=5,individual_mutation_chance=.2, \
-                 gene_mutation_chance=.1, mutation_swing = 1, discrete=False ):
+                 gene_mutation_chance=.1, mutation_swing = 1, \
+                 crossover_chance = .5, discrete=False ):
         #the pool should always be kept in an ordered state
         
         self.nx = nx
@@ -151,6 +165,7 @@ class Abathur:
         self.Wdiff = Wmax-Wmin
         self.mutswing = mutation_swing
         self.discrete = discrete
+        self.crosschance = crossover_chance
         
         self.pool = []
         for i in range(0,poolsize):
@@ -194,7 +209,7 @@ class Abathur:
         E = np.sum(E)
         return -E#/len(self.dataset)
     
-    def mate(self,parent1,parent2):
+    '''def mate(self,parent1,parent2):
         child1 = MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax,noinit=True)
         child2 = MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax,noinit=True)
         avgWhx = (parent1.Whx + parent2.Whx)/2
@@ -208,7 +223,73 @@ class Abathur:
         child1.Wyh = avgWyh - deltaWyh*.16
         child2.Wyh = avgWyh + deltaWyh*.16
         
-        return child1,child2
+        return child1,child2'''
+    
+    def mate(self, *parents):
+        '''
+        Currently only works for 2 parents
+        accepts any number of parents, but the basic structure of the first
+        will be copied (nx, nh, etc.) and is expected to be identical to Abathur specs
+        '''
+        
+        # goes through all the parends and does a 'rotation' with the genes
+
+        #afterwards, it is assumed that there are at least 2 parents
+        if len(parents) == 1:
+            return parents[0].copy()
+        
+        parentcount = len(parents)
+        
+        avgWhx = np.zeros((self.nh, self.nx+1))
+        avgWyh = np.zeros((self.ny, self.nh+1))
+        for parent in parents:
+            avgWhx += parent.Whx
+            avgWyh += parent.Wyh
+        avgWhx /= parentcount
+        avgWyh /= parentcount
+    
+        
+        children = [parents[0].copy(weightless=True)] * (parentcount+1)
+       
+        children[0].Whx = avgWhx[:]
+        children[0].Wyh = avgWyh[:]
+       
+        #parent1 gene and parent 2 gene
+        for i,(p1g,p2g) in enumerate(zip(parents[0].Whx.flat,parents[1].Whx.flat)):
+            if np.random.random()<=self.crosschance:
+                children[1].Whx.flat[i] = p1g
+                children[2].Whx.flat[i] = p2g
+            else:
+                children[2].Whx.flat[i] = p1g
+                children[1].Whx.flat[i] = p2g
+        
+        for i,(p1g,p2g) in enumerate(zip(parents[0].Wyh.flat,parents[1].Wyh.flat)):
+            if np.random.random()<=self.crosschance:
+                children[1].Wyh.flat[i] = p1g
+                children[2].Wyh.flat[i] = p2g
+            else:
+                children[2].Wyh.flat[i] = p1g
+                children[1].Wyh.flat[i] = p2g
+        '''
+        for i in range(0,len(parents.Whx.flat)):
+            for j in range(0,parentscount):
+                c = parent
+            if np.random.random()<=self.crosschance:
+                 
+            else:
+                     
+        for i in range(0,len(parents.Wyh.flat)):
+            if np.random.random()<=self.genmut:
+                 individual.Wyh.flat[i] += self.Wdiff * self.mutswing * \
+                                             (np.random.random() - .5) 
+                '''
+        
+        '''for i in range(1,parentcount-1):
+            children[i].Whx = avgWhx
+            children[i].Wyh = avgWyh
+           ''' 
+        return children 
+    
     
     def mutate(self,pool):
         #i =0 
@@ -239,14 +320,55 @@ class Abathur:
         self.insort(self.pool,prime_individual)
         
         newpool = self.pool[:self.leftover_parents]
-        for i in range(0,self.survivors-self.leftover_parents-1,2):
-            child1,child2 = self.mate(self.pool[i][1],self.pool[i+1][1])
-            self.insort(newpool,child1)
-            self.insort(newpool,child2)
+        #TODO children produced is n+1 not 3/2*n
+        #for i in range(0,self.survivors-self.leftover_parents-1,2):
+        #    children = self.mate(self.pool[i][1],self.pool[i+1][1])
+        #produce enough children to meet the quota
+        
+        '''does not work for negatives!!!
+        #totalscore = 0
+        #for individual in self.pool:
+        #    totalscore += self.pool[0]'''
+        
+        # the chance of surviving is defined by survivors/total/2/nr of children per mating
+        # for the first individual. Then tapers off by geometrical order (/2)
+        #this ensures the end result will tend to the requested survivor count
+        # the rest is filled with random individuals
+        # for efficiency considerations, if the chance drops below .03% it should stop
+        
+        #children/mateing
+        cpm = 3
+        repr_coeff = 1.0*self.survivors/self.poolsize/2.0/cpm
+        
+        #Select mating pairs
+        for mater in self.pool:
+            for matee in self.pool:
+                #incest is one thing, mating with yourself is even less productive
+                if (matee == mater):
+                    continue
+                
+                if (np.random.random()<repr_coeff):
+                    children = self.mate(mater[1], matee[1])
+            
+                    for child in children:
+                        self.insort(newpool,child)
+                        
+                    if len(newpool)<self.survivors:
+                        break
+            #this ensures the poollength doesn't exceed limits
+            else:
+                repr_coeff /= 2
+                if repr_coeff<0.0003:
+                    break
+                continue
+            break
     
-        self.pool = newpool
-        for i in range(self.survivors,self.poolsize):
-            self.insort(self.pool,MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax))
+        if len(self.pool) > self.poolsize:
+            self.pool = newpool[:self.poolsize]
+        else:
+            self.pool = newpool
+            for i in range(len(self.pool),self.poolsize):
+                self.insort(self.pool,MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax))
     
         return
     #returns the best performing individual
@@ -389,6 +511,7 @@ def learn_vowels_by_evolution():
     
     for i in range(0,100):
         abathur.disp_best_specimens()
+        print abathur.fitness(abathur.prime_specimen(),discrete=True)
         print abathur.prime_specimen().Whx
         print abathur.prime_specimen().Wyh
         abathur.evolve()
@@ -397,7 +520,7 @@ def learn_vowels_by_evolution():
     net = abathur.prime_specimen()
     print net.Whx
     print net.Wyh
-    print abathur.fitness(abathur.prime_specimen())
+    print abathur.fitness(abathur.prime_specimen(),discrete=True)
 
 
     # what is the output for the entire dataset?
@@ -427,6 +550,7 @@ def learn_all_by_evolution():
         abathur.evolve()
     
     abathur.disp_best_specimens()
+    print abathur.fitness(abathur.prime_specimen(),discrete=True)
     net = abathur.prime_specimen()
     print net.Whx
     print net.Wyh
@@ -448,8 +572,8 @@ if __name__ == '__main__':
     #learn_vowels()
     #learn_all()
     
-    #learn_vowels_by_evolution()
-    learn_all_by_evolution()
+    learn_vowels_by_evolution()
+    #learn_all_by_evolution()
     
 # pairing mating:
     # vowels: 100gen discrete: 1
@@ -458,7 +582,9 @@ if __name__ == '__main__':
     # voiwels: 100gen combi: 1
     # all: 100gen cont: 15
     # all: 100gen disc: 19
-    # qllÉ 100gen combi: 19
-# 
-    
+    # qll: 100gen combi: 19
+
+# advanced matingÉ
+    # all: 100gen cont: 22
+    # all: 100gen dosc: 22
     
