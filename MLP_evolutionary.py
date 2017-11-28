@@ -338,30 +338,33 @@ class Abathur:
         
         #children/mateing
         cpm = 3
-        repr_coeff = 1.0*self.survivors/self.poolsize/2.0/cpm
+        nr_matings_req= 1.0*self.survivors/3.0/cpm
+        repr_chance = .5
         
         #Select mating pairs
-        for mater in self.pool:
-            for matee in self.pool:
-                #incest is one thing, mating with yourself is even less productive
-                if (matee == mater):
-                    continue
-                
-                if (np.random.random()<repr_coeff):
-                    children = self.mate(mater[1], matee[1])
-            
+        
+        for i in range (0,self.poolsize):
+            nr_matings = 0
+            for j in range (i,self.poolsize):
+                if (np.random.random()<repr_chance):
+                    nr_matings += 1
+                    children = self.mate(self.pool[i][1], self.pool[j][1])
+                    #print "mating ",i,"with",j
                     for child in children:
                         self.insort(newpool,child)
-                        
-                    if len(newpool)<self.survivors:
+                    if nr_matings>=nr_matings_req:
+                        #print "children produced:",nr_matings * cpm
+                        #print "too many children"
+                        break;
+                    
+                    if len(newpool)>self.survivors:
+                        #print "too many surivors"
                         break
-            #this ensures the poollength doesn't exceed limits
-            else:
-                repr_coeff /= 2
-                if repr_coeff<0.0003:
-                    break
-                continue
-            break
+            nr_matings_req = nr_matings_req/2 - 1 
+            repr_chance /= 2
+            
+            if len(newpool)>self.survivors:
+                break
     
         if len(self.pool) > self.poolsize:
             self.pool = newpool[:self.poolsize]
@@ -587,4 +590,5 @@ if __name__ == '__main__':
 # advanced matingÉ
     # all: 100gen cont: 22
     # all: 100gen dosc: 22
+    # vowels: 100 gen cont: 2
     
