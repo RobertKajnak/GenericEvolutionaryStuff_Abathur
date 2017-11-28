@@ -199,8 +199,10 @@ class Abathur:
         E=0
         for x,t in self.dataset:
             y = specimen.ffwd(x)
-            if discrete:
+            if discrete==1:
                 E += np.abs(t-np.floor(y+.5))
+            elif discrete==2:
+                E += np.abs(t-np.floor(y+.5)) + (t-y) ** 2
             else:
                 E += (t-y) ** 2
             
@@ -510,17 +512,21 @@ def learn_vowels_by_evolution():
     # now, let's make/train a perceptron:
     abathur = Abathur((6,10,1),dataset, poolsize=1500, survivors = 1100,\
                       leftover_parents=40,Wmin=-15,Wmax=15,\
-                      individual_mutation_chance=.3,gene_mutation_chance=.2)
+                      individual_mutation_chance=.3,gene_mutation_chance=.2,\
+                      discrete = 2)
     
+    best_specimens=[]
     for i in range(0,100):
         abathur.disp_best_specimens()
-        print abathur.fitness(abathur.prime_specimen(),discrete=True)
+        best_specimens.append(abathur.prime_specimen())
+        print abathur.fitness(best_specimens,discrete=True)
         print abathur.prime_specimen().Whx
         print abathur.prime_specimen().Wyh
         abathur.evolve()
     
     abathur.disp_best_specimens()
     net = abathur.prime_specimen()
+    best_specimens.append(net)
     print net.Whx
     print net.Wyh
     print abathur.fitness(abathur.prime_specimen(),discrete=True)
@@ -533,7 +539,7 @@ def learn_vowels_by_evolution():
         print "output for {}: {} => {}  {}".format(s, np.round(y, 3), int(y > 0.5), \
                           ' -- FAILED' if not t==int(y>0.5) else ' ')
     
-    return
+    return best_specimens
 
 def learn_all_by_evolution():
     #get dataset
@@ -543,11 +549,13 @@ def learn_all_by_evolution():
     abathur = Abathur((6,10,3),dataset, poolsize=1500, survivors = 1100,\
                       leftover_parents=30,Wmin=-15,Wmax=15,\
                       individual_mutation_chance=.5,gene_mutation_chance=.4,\
-                      discrete=False )
+                      discrete= 2 )
     
+    best_specimens = []
     for i in range(0,100):
         abathur.disp_best_specimens()
-        print abathur.fitness(abathur.prime_specimen(),discrete=True)
+        best_specimens.append(abathur.prime_specimen())
+        print abathur.fitness(best_specimens[i],discrete=True)
         print abathur.prime_specimen().Whx
         print abathur.prime_specimen().Wyh
         abathur.evolve()
@@ -555,9 +563,11 @@ def learn_all_by_evolution():
     abathur.disp_best_specimens()
     print abathur.fitness(abathur.prime_specimen(),discrete=True)
     net = abathur.prime_specimen()
+    best_specimens.append(net)
     print net.Whx
     print net.Wyh
     
+    return 
     # what is the output for the entire dataset?
     for s, (x, t) in zip(symbols, dataset):
         y = net.ffwd(x)
@@ -568,15 +578,16 @@ def learn_all_by_evolution():
                           'Number' if y[1]>0.5 else ' ',\
                           'Punctuation' if y[2]>0.5 else ' ', \
                           ' -- FAILED' if incorrect else ' ')
-    return
+    return best_specimens
 
 if __name__ == '__main__':
     #learn_xor()
     #learn_vowels()
     #learn_all()
     
-    learn_vowels_by_evolution()
-    #learn_all_by_evolution()
+    #TODO - there is a bug in the metric
+    #bs = learn_vowels_by_evolution()
+    bs = learn_all_by_evolution()
     
 # pairing mating:
     # vowels: 100gen discrete: 1
@@ -587,8 +598,11 @@ if __name__ == '__main__':
     # all: 100gen disc: 19
     # qll: 100gen combi: 19
 
-# advanced matingÉ
+# no mating
     # all: 100gen cont: 22
     # all: 100gen dosc: 22
     # vowels: 100 gen cont: 2
     
+#advanced mating:
+    #vowel 100gen cont: 0 (0.12913)
+    #vowel 100gen combi: 
