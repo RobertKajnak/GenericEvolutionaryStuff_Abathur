@@ -3,8 +3,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import ast
 import time
+from copy import  deepcopy
 # learning rate epsilon set globally:
 epsilon = .3
+ICHECK=False
+
 
 # activation function:
 sigmoid = lambda x: 1/(1+np.exp(-x))
@@ -36,8 +39,10 @@ class MLP(object):
             return MLP(self.nx,self.nh,self.ny,self.Wmin,self.Wmax,noinit=True)
         else:
             mlp = MLP(self.nx,self.nh,self.ny,self.Wmin,self.Wmax,noinit=True)
-            mlp.Whx = self.Whx[:]
-            mlp.Wyh = self.Wyh[:]
+            #mlp.Whx = self.Whx[:]
+            #mlp.Wyh = self.Wyh[:]
+            mlp.Whx = deepcopy(self.Whx)
+            mlp.Wyh = deepcopy(self.Wyh)
             return mlp
     
     def init_weights(self):
@@ -233,7 +238,6 @@ class Abathur:
         accepts any number of parents, but the basic structure of the first
         will be copied (nx, nh, etc.) and is expected to be identical to Abathur specs
         '''
-        
         # goes through all the parends and does a 'rotation' with the genes
 
         #afterwards, it is assumed that there are at least 2 parents
@@ -253,8 +257,8 @@ class Abathur:
         
         children = [parents[0].copy(weightless=True)] * (parentcount+1)
        
-        children[0].Whx = avgWhx[:]
-        children[0].Wyh = avgWyh[:]
+        children[0].Whx = deepcopy(avgWhx)
+        children[0].Wyh = deepcopy(avgWyh)
        
         #parent1 gene and parent 2 gene
         for i,(p1g,p2g) in enumerate(zip(parents[0].Whx.flat,parents[1].Whx.flat)):
@@ -272,35 +276,35 @@ class Abathur:
             else:
                 children[2].Wyh.flat[i] = p1g
                 children[1].Wyh.flat[i] = p2g
-        '''
-        for i in range(0,len(parents.Whx.flat)):
-            for j in range(0,parentscount):
-                c = parent
+                
+        '''for i,pgs in enumerate([parent.Wyh.flat for parent in parents]):
             if np.random.random()<=self.crosschance:
-                 
+                for j in range(1,parentcount+1):
+                    children[j].Wyh.flat[i] = pgs[j] 
             else:
-                     
-        for i in range(0,len(parents.Wyh.flat)):
-            if np.random.random()<=self.genmut:
-                 individual.Wyh.flat[i] += self.Wdiff * self.mutswing * \
-                                             (np.random.random() - .5) 
-                '''
-        
-        '''for i in range(1,parentcount-1):
-            children[i].Whx = avgWhx
-            children[i].Wyh = avgWyh
-           ''' 
+                children[2].Wyh.flat[i] = p1g
+                children[1].Wyh.flat[i] = p2g
+        '''
         return children 
-    
-    
+        
+    #TODO - verify if mutations are done correctly
+    #TODO - increase efficiency based on mutation chance
     def mutate(self,pool):
         #i =0 
+        
+        
+        if ICHECK: print "Total Errors - Starting mutation:",self.check_integrity(pool) 
         newpool = []
         for indituple in pool:
-            individual = indituple[1]
+            #TODO it is probably not necessary to use copy
+            individual = indituple[1].copy(weightless = False)
+            '''for i in range(0,len(individual.Whx)):
+                    for j in range(0,len(individual.Whx[0])):
+                            individual.Whx.flat[i] += 1'''
             if np.random.random()<=self.indmut:
                 #need to modify the individual weights, which are floats,
-                #therfore iteration over the space will not work
+                #therfore iteration over the space will not work    
+                
                 for i in range(0,len(individual.Whx.flat)):
                     if np.random.random()<=self.genmut:
                          individual.Whx.flat[i] += self.Wdiff * self.mutswing * \
@@ -308,19 +312,29 @@ class Abathur:
                 for i in range(0,len(individual.Wyh.flat)):
                     if np.random.random()<=self.genmut:
                          individual.Wyh.flat[i] += self.Wdiff * self.mutswing * \
-                                                 (np.random.random() - .5)    
+                                                 (np.random.random() - .5)
                 
             self.insort(newpool,individual)
+            
+        if ICHECK: print "Total Errors - Returning:",self.check_integrity(newpool) 
             #i+=1
         return newpool
     
     def evolve(self):
+        if ICHECK: print "Total Errors - evolve start:",self.check_integrity(self.pool) 
         self.generation += 1
         
+        #the chance of getting a good mutation on the best specimen is lower than
+        # getting one in one of the lower quality specimens, therefore the first
+        # one is skipped TODO - maybe implement a forced mutation for  clone of 
+        # the first?
+        # Just adding mutated clones of the first as random samples might lead
+        # to evoutionary dead-ends
         prime_individual = self.pool[0][1]
         self.pool = self.mutate(self.pool[1:])
         self.insort(self.pool,prime_individual)
         
+        #this line should always be first -- the pool is assured to be sorted
         newpool = self.pool[:self.leftover_parents]
         #TODO children produced is n+1 not 3/2*n
         #for i in range(0,self.survivors-self.leftover_parents-1,2):
@@ -343,8 +357,9 @@ class Abathur:
         nr_matings_req= 1.0*self.survivors/3.0/cpm
         repr_chance = .5
         
-        #Select mating pairs
         
+        if ICHECK: print "Total Errors - after mutation:",self.check_integrity(self.pool) 
+        #Select mating pairs
         for i in range (0,self.poolsize):
             nr_matings = 0
             for j in range (i,self.poolsize):
@@ -367,17 +382,20 @@ class Abathur:
             
             if len(newpool)>self.survivors:
                 break
-    
+            
+        if ICHECK: print "Total Errors - mating halfway:",self.check_integrity(self.pool) 
+
+        self.pool = newpool
         if len(self.pool) > self.poolsize:
             self.pool = newpool[:self.poolsize]
         else:
-            self.pool = newpool
             for i in range(len(self.pool),self.poolsize):
                 self.insort(self.pool,MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax))
-    
+   
+        print "Total Errors - evolve end:",self.check_integrity(self.pool) 
         return
     #returns the best performing individual
-    def prime_specimen(self,):
+    def prime_specimen(self):
         return self.pool[0][1]
     
     def disp_best_specimens(self,n=5):
@@ -385,11 +403,17 @@ class Abathur:
         print     "Place -   Score"
         for i in range(0,min(n,len(self.pool))):
             print "%d.   -   %f"%(i,-self.pool[i][0])
+        print "Total Errors - printing prime specimens:",self.check_integrity(self.pool) 
 
-    
+    def check_integrity(self,pool):
+        s = 0
+        for specimen in pool:
+            if self.fitness(specimen[1],self.discrete) != specimen[0]:
+                s+=1
+        return s
     
 def train(net, dataset, plot_learning=False):
-    dset = dataset[:]
+    dset = deepcopy(dataset)
     epoch = 0
 
     error_list = []
@@ -519,7 +543,7 @@ def learn_vowels_by_evolution():
     for i in range(0,100):
         abathur.disp_best_specimens()
         best_specimens.append(abathur.prime_specimen())
-        print abathur.fitness(best_specimens,discrete=True)
+        print abathur.fitness(best_specimens[i],discrete=True)
         print abathur.prime_specimen().Whx
         print abathur.prime_specimen().Wyh
         abathur.evolve()
@@ -567,7 +591,6 @@ def learn_all_by_evolution():
     print net.Whx
     print net.Wyh
     
-    return 
     # what is the output for the entire dataset?
     for s, (x, t) in zip(symbols, dataset):
         y = net.ffwd(x)
@@ -605,4 +628,7 @@ if __name__ == '__main__':
     
 #advanced mating:
     #vowel 100gen cont: 0 (0.12913)
-    #vowel 100gen combi: 
+    #vowel 100gen combi: 0, 0.00000 (after about 90 gens)
+    #all 100gen combi: 13 (16.004935)
+    #all 100gen cont: 14(14.00)
+    #all 100gen disc: 
