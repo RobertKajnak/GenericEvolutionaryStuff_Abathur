@@ -4,6 +4,7 @@ import pandas as pd
 import ast
 import time
 from copy import  deepcopy
+import pickle
 # learning rate epsilon set globally:
 epsilon = .3
 ICHECK=False
@@ -13,6 +14,12 @@ ICHECK=False
 sigmoid = lambda x: 1/(1+np.exp(-x))
 dsigmoid=lambda x: np.exp(x)/( (np.exp(x) + 1)**2)
 
+def load_MLP_from_file(filename):
+    f = open(filename,"r")
+    nnmpl = pickle.load(f)       
+    
+    f.close()
+    return nnmpl
 class MLP(object):
     """Neural Network with 1 hidden layer,
     Trained with backpropagation"""
@@ -28,6 +35,13 @@ class MLP(object):
         if not noinit:
             self.init_weights()
 
+        return
+    
+    def save_to_file(self, filename):
+        g = open(filename,"w")
+        pickle.dump(self,g)
+        
+        g.close
         return
     
     def copy(self,weightless = True):
@@ -392,7 +406,7 @@ class Abathur:
             for i in range(len(self.pool),self.poolsize):
                 self.insort(self.pool,MLP(self.nx,self.nh,self.ny,Wmin=self.Wmin,Wmax=self.Wmax))
    
-        print "Total Errors - evolve end:",self.check_integrity(self.pool) 
+        if ICHECK: print "Total Errors - evolve end:",self.check_integrity(self.pool) 
         return
     #returns the best performing individual
     def prime_specimen(self):
@@ -402,8 +416,11 @@ class Abathur:
         print "Generation:",self.generation
         print     "Place -   Score"
         for i in range(0,min(n,len(self.pool))):
+            if self.fitness(self.pool[i][1],self.discrete)!=self.pool[i][0]:
+                print "--------\nCORRUPTION DETECTED\n--------"
             print "%d.   -   %f"%(i,-self.pool[i][0])
-        print "Total Errors - printing prime specimens:",self.check_integrity(self.pool) 
+            
+        if ICHECK :print "Total Errors - printing prime specimens:",self.check_integrity(self.pool) 
 
     def check_integrity(self,pool):
         s = 0
@@ -573,7 +590,7 @@ def learn_all_by_evolution():
     abathur = Abathur((6,10,3),dataset, poolsize=1500, survivors = 1100,\
                       leftover_parents=30,Wmin=-15,Wmax=15,\
                       individual_mutation_chance=.5,gene_mutation_chance=.4,\
-                      discrete= 2 )
+                      discrete= 0 )
     
     best_specimens = []
     for i in range(0,100):
@@ -590,6 +607,7 @@ def learn_all_by_evolution():
     best_specimens.append(net)
     print net.Whx
     print net.Wyh
+    net.save_to_file("all100gencont.txt" )
     
     # what is the output for the entire dataset?
     for s, (x, t) in zip(symbols, dataset):
@@ -612,6 +630,7 @@ if __name__ == '__main__':
     #bs = learn_vowels_by_evolution()
     bs = learn_all_by_evolution()
     
+    
 # pairing mating:
     # vowels: 100gen discrete: 1
     # vowels: 30gen continuous: 2
@@ -629,6 +648,6 @@ if __name__ == '__main__':
 #advanced mating:
     #vowel 100gen cont: 0 (0.12913)
     #vowel 100gen combi: 0, 0.00000 (after about 90 gens)
-    #all 100gen combi: 13 (16.004935)
-    #all 100gen cont: 14(14.00)
+    #all 100gen combi: 14 (27.4314)
+    #all 100gen cont: 16 (14.64) 
     #all 100gen disc: 
